@@ -1,0 +1,81 @@
+"""
+Discovery Agent — discovers and catalogs data sources, analyzes schemas,
+extracts metadata from databases, data warehouses, and lakes.
+"""
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+DISCOVERY_SYSTEM_PROMPT = """You are the Discovery Agent for Sen'Analytics Mission Control.
+Your job is to discover and catalog data sources, analyze their schemas,
+and extract metadata. You identify tables, columns, data types, relationships,
+and data volumes across all connected systems."""
+
+
+async def discovery_node(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Discover and catalog data sources. Simulates scanning connected systems
+    and returning schema metadata.
+    """
+    task_context = state.get("current_task_context", {})
+    agent_results = state.get("agent_results", {})
+
+    logger.info(f"[Discovery] Scanning data sources: {task_context.get('description', '')}")
+
+    # Simulated discovery result
+    result = {
+        "output": {
+            "data_sources_found": 3,
+            "catalogs": [
+                {
+                    "name": "customer_db",
+                    "type": "PostgreSQL",
+                    "tables": 12,
+                    "total_rows": 1500000,
+                    "size_gb": 2.4,
+                },
+                {
+                    "name": "analytics_warehouse",
+                    "type": "Snowflake",
+                    "tables": 8,
+                    "total_rows": 5000000,
+                    "size_gb": 8.1,
+                },
+                {
+                    "name": "marketing_crm",
+                    "type": "SQL Server",
+                    "tables": 5,
+                    "total_rows": 300000,
+                    "size_gb": 0.6,
+                },
+            ],
+            "schemas_discovered": [
+                {
+                    "table": "customers",
+                    "columns": [
+                        {"name": "id", "type": "UUID"},
+                        {"name": "email", "type": "VARCHAR(255)", "potential_pii": True},
+                        {"name": "full_name", "type": "VARCHAR(255)", "potential_pii": True},
+                        {"name": "phone", "type": "VARCHAR(20)", "potential_pii": True},
+                        {"name": "address", "type": "TEXT", "potential_pii": True},
+                        {"name": "created_at", "type": "TIMESTAMP"},
+                    ],
+                }
+            ],
+        },
+        "metrics": {
+            "execution_time_ms": 450,
+            "token_usage": 320,
+            "cost_cents": 1,
+            "confidence": 0.95,
+        },
+        "agent_type": "discovery",
+    }
+
+    agent_results["discovery"] = result
+    state["agent_results"] = agent_results
+    state["current_step"] = state.get("current_step", 0) + 1
+
+    return state

@@ -1,0 +1,75 @@
+# ─── Dependencies ──────────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ─── Build Output ──────────────────────────────────────────
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Next.js ───────────────────────────────────────────────
+.turbo/
+
+# ─── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.tox/
+
+# ─── Virtual Environments ──────────────────────────────────
+.venv/
+venv/
+env/
+__pypackages__/
+
+# ─── Environment Files ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Docker Volumes ────────────────────────────────────────
+docker/postgres/data/
+docker/neo4j/data/
+docker/redis/data/
+
+# ─── Logs ──────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# ─── IDE / Editor ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Deployment ────────────────────────────────────────────
+.vercel
+
+# ─── Sensitive ─────────────────────────────────────────────
+*.pem
+*.key
+credentials.json
+
+# ─── Hermes ────────────────────────────────────────────────
+.hermes/plans/
+.hermes/logs/
+.hermes/config.yaml
+
+# ─── OS / WSL ──────────────────────────────────────────────
+NTUSER.DAT*
+ntuser.dat*

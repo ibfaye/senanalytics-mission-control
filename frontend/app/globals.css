@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-mission-950: #020617;
+  --color-mission-900: #0f172a;
+  --color-mission-800: #1e293b;
+  --color-mission-700: #334155;
+  --color-mission-600: #475569;
+  --color-mission-500: #64748b;
+  --color-mission-400: #94a3b8;
+  --color-mission-300: #cbd5e1;
+  --color-mission-200: #e2e8f0;
+  --color-mission-100: #f1f5f9;
+  --color-mission-50: #f8fafc;
+  --color-agent-emerald: #34d399;
+  --color-agent-cyan: #22d3ee;
+  --color-agent-violet: #a78bfa;
+  --color-agent-amber: #fbbf24;
+  --color-agent-rose: #fb7185;
+  --color-agent-orange: #fb923c;
+  --color-node-idle: #475569;
+  --color-node-running: #34d399;
+  --color-node-success: #10b981;
+  --color-node-failed: #ef4444;
+  --color-node-paused: #f59e0b;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-mission-800);
+  }
+  body {
+    background-color: var(--color-mission-950);
+    color: var(--color-mission-100);
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* React Flow overrides */
+.react-flow__node {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-mission-600);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-agent-cyan);
+}
+
+/* Node status animations */
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+}
+
+.node-running {
+  animation: node-pulse 2s infinite;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-mission-900);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-mission-700);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-mission-600);
+}

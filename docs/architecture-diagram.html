@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sen'Analytics Mission Control — System Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617; min-height: 100vh; padding: 2rem; color: white;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5); border-radius: 1rem;
+      border: 1px solid #1e293b; padding: 1.5rem; overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1200px; display: block; }
+    .cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem; margin-top: 2rem;
+    }
+    .card { background: rgba(15, 23, 42, 0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card-dot.orange { background: #fb923c; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Sen'Analytics Mission Control — System Architecture</h1>
+      </div>
+      <p class="subtitle">Agentic Governance Operating System · Multi-Agent Mesh · React Flow · LangGraph · MCP · Neo4j</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1400 1050">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrowCyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowEmerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowViolet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrowAmber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrowRose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============================================================ -->
+        <!-- LAYER 6: Frontend (Top) — Cyan                                -->
+        <!-- ============================================================ -->
+        <rect x="30" y="20" width="1340" height="155" rx="12" fill="rgba(8, 51, 68, 0.15)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="40" fill="#22d3ee" font-size="10" font-weight="600">LAYER 6 · Presentation — Next.js 16 + React Flow</text>
+
+        <!-- Browser / User -->
+        <rect x="60" y="55" width="120" height="50" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="120" y="76" fill="white" font-size="11" font-weight="600" text-anchor="middle">Users</text>
+        <text x="120" y="92" fill="#94a3b8" font-size="9" text-anchor="middle">Browser / Mobile</text>
+
+        <!-- NextAuth -->
+        <rect x="60" y="112" width="120" height="48" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="120" y="133" fill="white" font-size="11" font-weight="600" text-anchor="middle">NextAuth v5</text>
+        <text x="120" y="149" fill="#94a3b8" font-size="9" text-anchor="middle">OAuth / JWT</text>
+
+        <!-- Next.js App -->
+        <rect x="220" y="55" width="300" height="105" rx="8" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="370" y="80" fill="white" font-size="12" font-weight="600" text-anchor="middle">Next.js 16 App Router</text>
+        <text x="370" y="100" fill="#94a3b8" font-size="9" text-anchor="middle">SSR · Streaming · RSC</text>
+        <text x="370" y="116" fill="#94a3b8" font-size="9" text-anchor="middle">Tailwind v4 · shadcn/ui</text>
+        <text x="370" y="136" fill="#94a3b8" font-size="9" text-anchor="middle">Zustand · TanStack Query</text>
+        <text x="370" y="154" fill="#22d3ee" font-size="8" text-anchor="middle">localhost:3000</text>
+
+        <!-- React Flow Canvas -->
+        <rect x="560" y="55" width="380" height="105" rx="8" fill="rgba(8, 51, 68, 0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="750" y="80" fill="white" font-size="12" font-weight="600" text-anchor="middle">React Flow Canvas (@xyflow/react)</text>
+        <text x="750" y="100" fill="#94a3b8" font-size="9" text-anchor="middle">Custom Nodes: Agent · Tool · Approval · Policy · Condition · Trigger</text>
+        <text x="750" y="116" fill="#94a3b8" font-size="9" text-anchor="middle">Animated Edges · Minimap · Controls · Drag & Drop</text>
+        <text x="750" y="136" fill="#94a3b8" font-size="9" text-anchor="middle">Live Status: idle · running · success · failed · paused</text>
+        <text x="750" y="154" fill="#22d3ee" font-size="8" text-anchor="middle">n8n-style execution animation</text>
+
+        <!-- Dashboards -->
+        <rect x="980" y="55" width="370" height="105" rx="8" fill="rgba(8, 51, 68, 0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1165" y="80" fill="white" font-size="12" font-weight="600" text-anchor="middle">Dashboards</text>
+        <text x="1165" y="100" fill="#94a3b8" font-size="9" text-anchor="middle">Mission Control · Governance · Security · Compliance</text>
+        <text x="1165" y="120" fill="#94a3b8" font-size="9" text-anchor="middle">Real-time metrics · Widgets · Charts</text>
+
+        <!-- Arrows within Layer 6 -->
+        <line x1="180" y1="80" x2="218" y2="80" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowCyan)"/>
+        <line x1="180" y1="136" x2="218" y2="136" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,5"/>
+        <line x1="520" y1="107" x2="558" y2="107" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowCyan)"/>
+        <line x1="940" y1="107" x2="978" y2="107" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowCyan)"/>
+
+        <!-- ============================================================ -->
+        <!-- Arrow: Frontend → API Gateway                                 -->
+        <!-- ============================================================ -->
+        <line x1="750" y1="175" x2="750" y2="210" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowCyan)"/>
+        <text x="765" y="196" fill="#94a3b8" font-size="9">proxy.ts · HTTPS</text>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 5: API Gateway — Emerald                                -->
+        <!-- ============================================================ -->
+        <rect x="30" y="215" width="1340" height="110" rx="12" fill="rgba(6, 78, 59, 0.12)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="235" fill="#34d399" font-size="10" font-weight="600">LAYER 5 · API Gateway — FastAPI + WebSockets</text>
+
+        <!-- FastAPI -->
+        <rect x="60" y="245" width="280" height="65" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="200" y="268" fill="white" font-size="11" font-weight="600" text-anchor="middle">Mission Control API</text>
+        <text x="200" y="284" fill="#94a3b8" font-size="9" text-anchor="middle">FastAPI · Pydantic v2 · async</text>
+        <text x="200" y="300" fill="#34d399" font-size="8" text-anchor="middle">localhost:8000</text>
+
+        <!-- Endpoints -->
+        <rect x="370" y="245" width="360" height="65" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="550" y="268" fill="white" font-size="11" font-weight="600" text-anchor="middle">REST API</text>
+        <text x="550" y="284" fill="#94a3b8" font-size="9" text-anchor="middle">/workflows · /agents · /executions · /audit · /dashboards</text>
+        <text x="550" y="300" fill="#94a3b8" font-size="8" text-anchor="middle">/approvals · /knowledge · /mcp</text>
+
+        <!-- WebSocket -->
+        <rect x="760" y="245" width="280" height="65" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="900" y="268" fill="white" font-size="11" font-weight="600" text-anchor="middle">WebSocket Server</text>
+        <text x="900" y="284" fill="#94a3b8" font-size="9" text-anchor="middle">node.{start,progress,complete,error}</text>
+        <text x="900" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">approval.{requested,responded}</text>
+
+        <!-- Redis Streams -->
+        <rect x="1070" y="245" width="280" height="65" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="1210" y="268" fill="white" font-size="11" font-weight="600" text-anchor="middle">Redis Streams</text>
+        <text x="1210" y="284" fill="#94a3b8" font-size="9" text-anchor="middle">Event Bus · Pub/Sub</text>
+        <text x="1210" y="300" fill="#94a3b8" font-size="9" text-anchor="middle">Execution state streaming</text>
+
+        <!-- ============================================================ -->
+        <!-- Arrow: API → LangGraph                                        -->
+        <!-- ============================================================ -->
+        <line x1="200" y1="325" x2="200" y2="360" stroke="#34d399" stroke-width="2" marker-end="url(#arrowEmerald)"/>
+        <text x="215" y="346" fill="#94a3b8" font-size="9">gRPC</text>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 4: Orchestration Engine — Emerald                        -->
+        <!-- ============================================================ -->
+        <rect x="30" y="365" width="1340" height="180" rx="12" fill="rgba(6, 78, 59, 0.12)" stroke="#34d399" stroke-width="2" stroke-dasharray="8,4"/>
+        <text x="46" y="385" fill="#34d399" font-size="10" font-weight="600">LAYER 4 · Orchestration Engine — LangGraph Runtime</text>
+
+        <!-- Supervisor Agent -->
+        <rect x="60" y="395" width="240" height="100" rx="8" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="2"/>
+        <text x="180" y="418" fill="white" font-size="12" font-weight="700" text-anchor="middle">🧠 Supervisor Agent</text>
+        <text x="180" y="438" fill="#94a3b8" font-size="9" text-anchor="middle">Planning · Routing · Delegation</text>
+        <text x="180" y="454" fill="#94a3b8" font-size="9" text-anchor="middle">Approval Checkpoints</text>
+        <text x="180" y="474" fill="#94a3b8" font-size="9" text-anchor="middle">Result Aggregation</text>
+        <text x="180" y="490" fill="#34d399" font-size="8" text-anchor="middle">StateGraph · MemorySaver</text>
+
+        <!-- Human Approval -->
+        <rect x="330" y="440" width="160" height="55" rx="8" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="2"/>
+        <text x="410" y="462" fill="white" font-size="11" font-weight="600" text-anchor="middle">🛑 Human-in-the-Loop</text>
+        <text x="410" y="480" fill="#94a3b8" font-size="9" text-anchor="middle">Approve · Reject · Change</text>
+
+        <!-- Agent Mesh -->
+        <rect x="520" y="395" width="820" height="135" rx="8" fill="rgba(6, 78, 59, 0.15)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="536" y="414" fill="#34d399" font-size="9" font-weight="600">Agent Mesh — 6 Specialized Workers</text>
+
+        <!-- Discovery -->
+        <rect x="540" y="422" width="175" height="45" rx="5" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="627" y="440" fill="white" font-size="9" font-weight="600" text-anchor="middle">🔍 Discovery Agent</text>
+        <text x="627" y="456" fill="#94a3b8" font-size="8" text-anchor="middle">Catalog · Schema · Metadata</text>
+
+        <!-- Classification -->
+        <rect x="720" y="422" width="175" height="45" rx="5" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="807" y="440" fill="white" font-size="9" font-weight="600" text-anchor="middle">🏷️ Classification Agent</text>
+        <text x="807" y="456" fill="#94a3b8" font-size="8" text-anchor="middle">PII · SPI · Sensitive Data</text>
+
+        <!-- Security -->
+        <rect x="900" y="422" width="175" height="45" rx="5" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="987" y="440" fill="white" font-size="9" font-weight="600" text-anchor="middle">🛡️ Security Agent</text>
+        <text x="987" y="456" fill="#94a3b8" font-size="8" text-anchor="middle">IAM · Vulns · Posture</text>
+
+        <!-- Compliance -->
+        <rect x="1080" y="422" width="175" height="45" rx="5" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="1167" y="440" fill="white" font-size="9" font-weight="600" text-anchor="middle">📋 Compliance Agent</text>
+        <text x="1167" y="456" fill="#94a3b8" font-size="8" text-anchor="middle">GDPR · PIPEDA · SOC2 · ISO</text>
+
+        <!-- Risk -->
+        <rect x="540" y="472" width="175" height="45" rx="5" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="627" y="490" fill="white" font-size="9" font-weight="600" text-anchor="middle">⚠️ Risk Agent</text>
+        <text x="627" y="506" fill="#94a3b8" font-size="8" text-anchor="middle">Likelihood · Impact · Score</text>
+
+        <!-- Reporting -->
+        <rect x="720" y="472" width="175" height="45" rx="5" fill="rgba(6, 78, 59, 0.35)" stroke="#34d399" stroke-width="1"/>
+        <text x="807" y="490" fill="white" font-size="9" font-weight="600" text-anchor="middle">📊 Reporting Agent</text>
+        <text x="807" y="506" fill="#94a3b8" font-size="8" text-anchor="middle">Summaries · Audit · Remediation</text>
+
+        <!-- Supervisor → Workers arrows -->
+        <line x1="300" y1="445" x2="538" y2="445" stroke="#34d399" stroke-width="1" marker-end="url(#arrowEmerald)"/>
+        <text x="420" y="435" fill="#94a3b8" font-size="8" text-anchor="middle">delegates</text>
+
+        <!-- Supervisor → Approval arrow -->
+        <line x1="300" y1="467" x2="328" y2="467" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,5" marker-end="url(#arrowRose)"/>
+
+        <!-- ============================================================ -->
+        <!-- Arrow: LangGraph → MCP Layer                                  -->
+        <!-- ============================================================ -->
+        <line x1="400" y1="545" x2="400" y2="580" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrowAmber)"/>
+        <text x="415" y="566" fill="#94a3b8" font-size="9">MCP Protocol</text>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 3: MCP Tool Layer — Amber                                -->
+        <!-- ============================================================ -->
+        <rect x="30" y="585" width="1340" height="120" rx="12" fill="rgba(120, 53, 15, 0.08)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="605" fill="#fbbf24" font-size="10" font-weight="600">LAYER 3 · MCP Tool Layer — Pluggable Adapters</text>
+
+        <!-- MCP Registry -->
+        <rect x="60" y="615" width="180" height="75" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="150" y="638" fill="white" font-size="11" font-weight="600" text-anchor="middle">MCP Registry</text>
+        <text x="150" y="658" fill="#94a3b8" font-size="9" text-anchor="middle">Dynamic Tool Discovery</text>
+        <text x="150" y="674" fill="#94a3b8" font-size="8" text-anchor="middle">Schema Validation</text>
+
+        <!-- Adapters row 1 -->
+        <rect x="270" y="615" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="330" y="637" fill="white" font-size="9" text-anchor="middle">Snowflake</text>
+
+        <rect x="400" y="615" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="460" y="637" fill="white" font-size="9" text-anchor="middle">Databricks</text>
+
+        <rect x="530" y="615" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="590" y="637" fill="white" font-size="9" text-anchor="middle">PostgreSQL</text>
+
+        <rect x="660" y="615" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="720" y="637" fill="white" font-size="9" text-anchor="middle">SQL Server</text>
+
+        <rect x="790" y="615" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="850" y="637" fill="white" font-size="9" text-anchor="middle">Jira</text>
+
+        <!-- Adapters row 2 -->
+        <rect x="270" y="655" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="330" y="677" fill="white" font-size="9" text-anchor="middle">ServiceNow</text>
+
+        <rect x="400" y="655" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="460" y="677" fill="white" font-size="9" text-anchor="middle">Power BI</text>
+
+        <rect x="530" y="655" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="590" y="677" fill="white" font-size="9" text-anchor="middle">MS Purview</text>
+
+        <rect x="660" y="655" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="720" y="677" fill="white" font-size="9" text-anchor="middle">AWS</text>
+
+        <rect x="790" y="655" width="120" height="35" rx="5" fill="rgba(120, 53, 15, 0.25)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="850" y="677" fill="white" font-size="9" text-anchor="middle">Azure</text>
+
+        <!-- Audit Logger -->
+        <rect x="960" y="615" width="380" height="75" rx="6" fill="rgba(136, 19, 55, 0.3)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="1150" y="638" fill="white" font-size="11" font-weight="600" text-anchor="middle">📝 Audit Logger</text>
+        <text x="1150" y="658" fill="#94a3b8" font-size="9" text-anchor="middle">Every agent action · decision · tool call</text>
+        <text x="1150" y="674" fill="#94a3b8" font-size="9" text-anchor="middle">Traceable · Replayable · Immutable</text>
+
+        <!-- ============================================================ -->
+        <!-- Arrow: MCP → External Systems                                 -->
+        <!-- ============================================================ -->
+        <line x1="400" y1="705" x2="400" y2="740" stroke="#fbbf24" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrowAmber)"/>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 2: External Systems — Slate                              -->
+        <!-- ============================================================ -->
+        <rect x="30" y="745" width="1340" height="80" rx="12" fill="rgba(30, 41, 59, 0.2)" stroke="#94a3b8" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="765" fill="#94a3b8" font-size="10" font-weight="600">LAYER 2 · External Systems</text>
+
+        <rect x="60" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="130" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">Snowflake DW</text>
+
+        <rect x="210" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="280" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">Databricks</text>
+
+        <rect x="360" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="430" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">AWS Cloud</text>
+
+        <rect x="510" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="580" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">Azure Cloud</text>
+
+        <rect x="660" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="730" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">Jira / SNOW</text>
+
+        <rect x="810" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="880" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">Purview</text>
+
+        <rect x="960" y="775" width="140" height="38" rx="5" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="1030" y="798" fill="#94a3b8" font-size="9" text-anchor="middle">Power BI</text>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 1: Data Stores — Violet                                  -->
+        <!-- ============================================================ -->
+        <rect x="30" y="845" width="1340" height="100" rx="12" fill="rgba(76, 29, 149, 0.1)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="865" fill="#a78bfa" font-size="10" font-weight="600">LAYER 1 · Data Stores</text>
+
+        <!-- PostgreSQL -->
+        <rect x="60" y="875" width="300" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="210" y="898" fill="white" font-size="12" font-weight="600" text-anchor="middle">PostgreSQL / Neon</text>
+        <text x="210" y="918" fill="#94a3b8" font-size="9" text-anchor="middle">Workflows · Agents · Executions · Audit · Users</text>
+
+        <!-- Neo4j -->
+        <rect x="390" y="875" width="300" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="540" y="898" fill="white" font-size="12" font-weight="600" text-anchor="middle">Neo4j</text>
+        <text x="540" y="918" fill="#94a3b8" font-size="9" text-anchor="middle">Knowledge Graph · Lineage · Domains · Controls</text>
+
+        <!-- Redis -->
+        <rect x="720" y="875" width="280" height="55" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="860" y="898" fill="white" font-size="12" font-weight="600" text-anchor="middle">Redis</text>
+        <text x="860" y="918" fill="#94a3b8" font-size="9" text-anchor="middle">Streams · Pub/Sub · Cache</text>
+
+        <!-- Langfuse + OTEL -->
+        <rect x="1030" y="875" width="320" height="55" rx="6" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1190" y="898" fill="white" font-size="12" font-weight="600" text-anchor="middle">Langfuse + OpenTelemetry</text>
+        <text x="1190" y="918" fill="#94a3b8" font-size="9" text-anchor="middle">Traces · Metrics · LLM Observability</text>
+
+        <!-- ============================================================ -->
+        <!-- Vertical connection lines between layers                      -->
+        <!-- ============================================================ -->
+
+        <!-- Legend -->
+        <text x="1040" y="960" fill="white" font-size="10" font-weight="600">Legend</text>
+
+        <rect x="1040" y="972" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="1062" y="980" fill="#94a3b8" font-size="8">Frontend / React Flow</text>
+
+        <rect x="1040" y="988" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="1062" y="996" fill="#94a3b8" font-size="8">Backend / Agents</text>
+
+        <rect x="1040" y="1004" width="16" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="1062" y="1012" fill="#94a3b8" font-size="8">MCP / External</text>
+
+        <rect x="1220" y="972" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="1242" y="980" fill="#94a3b8" font-size="8">Database</text>
+
+        <rect x="1220" y="988" width="16" height="10" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+        <text x="1242" y="996" fill="#94a3b8" font-size="8">Security / Auth</text>
+
+        <line x1="1040" y1="1016" x2="1056" y2="1016" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="1062" y="1019" fill="#94a3b8" font-size="8">Auth / Approval Flow</text>
+
+        <rect x="1220" y="1004" width="16" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="1242" y="1012" fill="#94a3b8" font-size="8">External Systems</text>
+
+      </svg>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>Agent Architecture</h3>
+        </div>
+        <ul>
+          <li>• Supervisor-worker pattern (proven)</li>
+          <li>• 6 specialized governance agents</li>
+          <li>• LangGraph StateGraph with MemorySaver</li>
+          <li>• Human-in-the-loop approval checkpoints</li>
+          <li>• Shared typed agent state</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>MCP Tool Layer</h3>
+        </div>
+        <ul>
+          <li>• 10 pluggable system adapters</li>
+          <li>• Dynamic tool discovery & registration</li>
+          <li>• Agents never call systems directly</li>
+          <li>• Schema validation on all calls</li>
+          <li>• Rate limiting & audit on every tool</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Data & Observability</h3>
+        </div>
+        <ul>
+          <li>• PostgreSQL: workflows, agents, audit</li>
+          <li>• Neo4j: knowledge graph, lineage</li>
+          <li>• Redis Streams: realtime execution</li>
+          <li>• Langfuse: LLM traces & cost</li>
+          <li>• OpenTelemetry: distributed tracing</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>Compliance Coverage</h3>
+        </div>
+        <ul>
+          <li>• GDPR (EU General Data Protection)</li>
+          <li>• CDP (Senegal Data Protection Act)</li>
+          <li>• PIPEDA (Canada Privacy Law)</li>
+          <li>• SOC2 (Security & Availability)</li>
+          <li>• ISO 27001 (Information Security)</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Sen'Analytics Mission Control v0.1.0 · Agentic Governance Operating System · Built with Next.js 16 + FastAPI + LangGraph
+    </p>
+  </div>
+</body>
+</html>
