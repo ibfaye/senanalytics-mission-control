@@ -12,6 +12,7 @@ import {
   Zap,
   Play,
   Save,
+  Loader2,
 } from "lucide-react";
 
 const nodeTemplates = [
@@ -88,8 +89,17 @@ export function WorkflowToolbar({
         className="flex items-center gap-1.5 rounded-md bg-agent-emerald px-3 py-1.5 text-xs font-semibold
           text-emerald-950 hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <Play className="h-3.5 w-3.5" />
-        Execute
+        {isExecuting ? (
+          <>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Running...
+          </>
+        ) : (
+          <>
+            <Play className="h-3.5 w-3.5" />
+            Execute
+          </>
+        )}
       </button>
     </div>
   );

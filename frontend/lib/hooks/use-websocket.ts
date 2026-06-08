@@ -36,8 +36,9 @@ export function useWebSocket(workflowId: string | null): UseWebSocketReturn {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+    const port = process.env.BACKEND_PORT || 8000;
 
-    const ws = new WebSocket(`ws://localhost:8001/ws/workflows/${workflowId}`);
+    const ws = new WebSocket(`ws://localhost:${port}/ws/workflows/${workflowId}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
