@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from app.core.engine import execute_workflow, get_execution, get_pending_approvals
+from app.core.engine import execute_workflow, get_execution, get_pending_approvals, pause_execution, resume_execution, cancel_execution
 
 logger = logging.getLogger(__name__)
 
@@ -60,23 +60,27 @@ async def list_executions():
 
 
 @router.post("/api/executions/{execution_id}/pause")
-async def pause_execution(execution_id: str):
+async def pause_execution_endpoint(execution_id: str):
     """Pause a running execution."""
-    exec_data = get_execution(execution_id)
-    if not exec_data:
-        raise HTTPException(status_code=404, detail="Execution not found")
-    exec_data["status"] = "paused"
+    if not pause_execution(execution_id):
+        raise HTTPException(status_code=404, detail="Execution not found or not running")
     return {"message": "Execution paused", "execution_id": execution_id}
 
 
 @router.post("/api/executions/{execution_id}/resume")
-async def resume_execution(execution_id: str):
+async def resume_execution_endpoint(execution_id: str):
     """Resume a paused execution."""
-    exec_data = get_execution(execution_id)
-    if not exec_data:
-        raise HTTPException(status_code=404, detail="Execution not found")
-    exec_data["status"] = "running"
+    if not resume_execution(execution_id):
+        raise HTTPException(status_code=404, detail="Execution not found or not paused")
     return {"message": "Execution resumed", "execution_id": execution_id}
+
+
+@router.post("/api/executions/{execution_id}/cancel")
+async def cancel_execution_endpoint(execution_id: str):
+    """Cancel a running or paused execution."""
+    if not cancel_execution(execution_id):
+        raise HTTPException(status_code=404, detail="Execution not found or not running/paused")
+    return {"message": "Execution cancelled", "execution_id": execution_id}
 
 
 def _get_demo_workflow(workflow_id: str) -> dict | None:

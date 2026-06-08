@@ -86,21 +86,64 @@ async def execute_workflow(
     }
 
     try:
+        # Pause/resume support
+        _executions[execution_id]["_pause_event"] = asyncio.Event()
+        _executions[execution_id]["_pause_event"].set()  # start unpaused
+        _executions[execution_id]["_cancelled"] = False
+
         agent_step_idx = 0
 
         for step in full_plan:
+            # ── Check for cancellation ──
+            if _executions[execution_id].get("_cancelled"):
+                logger.info(f"[Engine] Execution {execution_id} cancelled")
+                _executions[execution_id]["status"] = "cancelled"
+                await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.failed", {
+                    "executionId": execution_id,
+                    "error": "Execution cancelled by user",
+                })
+                return {"execution_id": execution_id, "status": "cancelled", "error": "Cancelled by user"}
+
+            # ── Wait if paused ──
+            pause_evt = _executions[execution_id].get("_pause_event")
+            if pause_evt:
+                await pause_evt.wait()
             node_id = step["node_id"]
             node_label = step["node_label"]
 
             # ── Approval step ──
             if step.get("requires_approval"):
                 approval_id = str(uuid.uuid4())
+                # Build context with accumulated agent results for review
+                agent_results = state.get("agent_results", {})
+                context_summary = {}
+                for agent_name, result in agent_results.items():
+                    output = result.get("output", {})
+                    if isinstance(output, dict):
+                        # Extract key metrics/summaries
+                        if "findings" in output:
+                            context_summary[agent_name] = {
+                                "findings_count": len(output["findings"]),
+                                "summary": output["findings"][:3] if output["findings"] else [],
+                            }
+                        elif "data_sources_found" in output:
+                            context_summary[agent_name] = {
+                                "data_sources": output["data_sources_found"],
+                                "catalogs": [c["name"] for c in output.get("catalogs", [])[:3]],
+                            }
+                        elif "total_fields_scanned" in output:
+                            context_summary[agent_name] = {
+                                "fields_scanned": output["total_fields_scanned"],
+                                "pii_found": output["pii_fields_found"],
+                            }
+                        else:
+                            context_summary[agent_name] = {"keys": list(output.keys())[:5]}
                 await _broadcast_to_all(execution_id, workflow_id, "approval.requested", {
                     "executionId": execution_id,
                     "approvalId": approval_id, "nodeId": node_id,
                     "nodeLabel": node_label,
                     "reason": step.get("description", "Human approval required"),
-                    "context": {},
+                    "context": context_summary,
                 })
                 _executions[execution_id].setdefault("approvals", []).append({
                     "approval_id": approval_id, "node_id": node_id, "status": "pending",
@@ -298,6 +341,47 @@ async def resolve_approval(approval_id: str, decision: str, reason: Optional[str
                     })
                     return True
     return False
+
+
+def pause_execution(execution_id: str) -> bool:
+    """Pause a running execution. The engine loop waits on an asyncio.Event."""
+    exec_data = _executions.get(execution_id)
+    if not exec_data or exec_data["status"] != "running":
+        return False
+    exec_data["status"] = "paused"
+    pause_evt = exec_data.get("_pause_event")
+    if pause_evt:
+        pause_evt.clear()
+    logger.info(f"[Engine] Execution {execution_id} paused")
+    return True
+
+
+def resume_execution(execution_id: str) -> bool:
+    """Resume a paused execution."""
+    exec_data = _executions.get(execution_id)
+    if not exec_data or exec_data["status"] != "paused":
+        return False
+    exec_data["status"] = "running"
+    pause_evt = exec_data.get("_pause_event")
+    if pause_evt:
+        pause_evt.set()
+    logger.info(f"[Engine] Execution {execution_id} resumed")
+    return True
+
+
+def cancel_execution(execution_id: str) -> bool:
+    """Cancel a running or paused execution."""
+    exec_data = _executions.get(execution_id)
+    if not exec_data or exec_data["status"] not in ("running", "paused"):
+        return False
+    exec_data["_cancelled"] = True
+    # Unpause to let the loop see the cancellation
+    pause_evt = exec_data.get("_pause_event")
+    if pause_evt and exec_data["status"] == "paused":
+        pause_evt.set()
+        exec_data["status"] = "running"
+    logger.info(f"[Engine] Execution {execution_id} cancel requested")
+    return True
 
 
 def get_execution(execution_id: str) -> Optional[dict]:

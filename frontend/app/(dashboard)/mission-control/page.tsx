@@ -1,28 +1,43 @@
 "use client";
 
 import { useWorkflows, useExecuteWorkflow } from "@/lib/hooks/use-workflows";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api/client";
 import {
   Activity,
   Bot,
   ShieldCheck,
   AlertTriangle,
-  Clock,
-  DollarSign,
-  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
-
-// Simulated metrics (from API in future)
-const stats = [
-  { label: "Active Workflows", value: 12, icon: Activity, color: "text-agent-cyan" },
-  { label: "Running Agents", value: 3, icon: Bot, color: "text-agent-emerald" },
-  { label: "Open Risks", value: 7, icon: AlertTriangle, color: "text-agent-rose" },
-  { label: "Compliance Gaps", value: 4, icon: ShieldCheck, color: "text-agent-amber" },
-];
 
 export default function MissionControlPage() {
   const { data: workflows, isLoading } = useWorkflows();
   const executeMutation = useExecuteWorkflow();
+
+  // Live stats from the API
+  const { data: executions } = useQuery({
+    queryKey: ["executions"],
+    queryFn: () => api.get<{ status: string }[]>("/executions"),
+    refetchInterval: 10_000,
+  });
+  const { data: agents } = useQuery({
+    queryKey: ["agents"],
+    queryFn: () => api.get<{ isActive: boolean }[]>("/agents"),
+    staleTime: 60_000,
+  });
+
+  const activeWorkflows = workflows?.filter((w) => w.status === "active").length || 0;
+  const runningAgents = agents?.filter((a) => a.isActive).length || 0;
+  const recentExecutions = executions?.length || 0;
+  const openApprovals = executions?.filter((e) => e.status === "running" || e.status === "paused").length || 0;
+
+  const stats = [
+    { label: "Active Workflows", value: activeWorkflows, icon: Activity, color: "text-agent-cyan" },
+    { label: "Running Agents", value: runningAgents, icon: Bot, color: "text-agent-emerald" },
+    { label: "Pending Approvals", value: openApprovals, icon: AlertTriangle, color: "text-agent-rose" },
+    { label: "Recent Executions", value: recentExecutions, icon: ShieldCheck, color: "text-agent-amber" },
+  ];
 
   return (
     <div className="p-6 space-y-6">
