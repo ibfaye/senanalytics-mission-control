@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build
+.next
+out
+dist
+.turbo
+
+# IDE
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Docs
+docs/
+README.md
+.hermes/

@@ -1,0 +1,21 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+*.egg-info
+dist
+build
+
+# IDE
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Docs
+docs/
+README.md
+.hermes/

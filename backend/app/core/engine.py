@@ -12,6 +12,7 @@ from typing import Optional, Any
 from datetime import datetime, timezone
 
 from app.core.websocket import ws_manager
+from app.core.persistence import save_execution, update_execution_status, save_step, update_step
 
 # ── Agent registry: name → async node function ──
 from app.agents.discovery import discovery_node
@@ -70,6 +71,9 @@ async def execute_workflow(
     await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.started", {
         "executionId": execution_id, "workflowId": workflow_id, "workflowName": task,
     })
+
+    # Persist execution to PostgreSQL
+    await save_execution(execution_id, workflow_id, "running")
 
     full_plan = _build_full_plan(workflow_nodes, workflow_edges)
     agent_plan = [s for s in full_plan if not s.get("requires_approval")]
@@ -178,6 +182,9 @@ async def execute_workflow(
             }
             _executions[execution_id].setdefault("steps", []).append(step_record)
 
+            # Persist step to PostgreSQL
+            await save_step(execution_id, agent_step_idx, node_id, agent)
+
             # Set context for the agent to read
             state["current_task_context"] = {
                 "agent": agent,
@@ -213,6 +220,18 @@ async def execute_workflow(
             step_record["metrics"] = metrics
             step_record["output"] = output_data
 
+            # Persist step completion to PostgreSQL
+            await update_step(
+                execution_id, agent_step_idx,
+                status="failed" if failed else "completed",
+                execution_time_ms=metrics.get("execution_time_ms", 0),
+                token_usage=metrics.get("token_usage", 0),
+                cost_cents=metrics.get("cost_cents", 0),
+                confidence_score=metrics.get("confidence", 0),
+                output=output_data if not failed else None,
+                error_message=str(e) if failed else None,
+            )
+
             if not failed:
                 await _broadcast_to_all(execution_id, workflow_id, "node.completed", {
                     "executionId": execution_id,
@@ -236,6 +255,16 @@ async def execute_workflow(
         _executions[execution_id]["completed_at"] = datetime.now(timezone.utc)
         _executions[execution_id]["output"] = final_output
 
+        # Persist execution completion to PostgreSQL
+        summary_metrics = final_output.get("metrics", {})
+        await update_execution_status(
+            execution_id, "completed",
+            output=final_output,
+            total_tokens=summary_metrics.get("total_tokens", 0),
+            total_cost_cents=summary_metrics.get("total_cost_cents", 0),
+            duration_ms=summary_metrics.get("total_execution_time_ms", 0),
+        )
+
         await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.completed", {
             "executionId": execution_id,
             "output": final_output,
@@ -248,6 +277,7 @@ async def execute_workflow(
         logger.error(f"[Engine] Execution {execution_id} failed: {e}", exc_info=True)
         _executions[execution_id]["status"] = "failed"
         _executions[execution_id]["error"] = str(e)
+        await update_execution_status(execution_id, "failed", error_message=str(e))
         await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.failed", {
             "executionId": execution_id,
             "error": str(e),

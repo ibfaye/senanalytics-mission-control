@@ -1,0 +1,32 @@
+services:
+  # ── Application Services ──
+  # Infrastructure (PostgreSQL, Neo4j, Redis, pgAdmin) runs separately:
+  #   cd docker && docker compose up -d
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://senanalytics:senanalytics_dev@host.docker.internal:5432/senanalytics
+      NEO4J_URI: bolt://host.docker.internal:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-senanalytics_dev}
+      REDIS_URL: redis://host.docker.internal:6379
+      HOST: 0.0.0.0
+      PORT: 8001
+    ports:
+      - "8001:8001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      BACKEND_URL: http://host.docker.internal:8001
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend

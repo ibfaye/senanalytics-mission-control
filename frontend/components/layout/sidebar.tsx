@@ -13,6 +13,9 @@ import {
   FileSearch,
   Plug,
   Network,
+  FileText,
+  Building2,
+  User,
 } from "lucide-react";
 
 const navItems = [
@@ -65,9 +68,27 @@ const navItems = [
     color: "text-agent-violet",
   },
   {
+    label: "Reports",
+    href: "/reports",
+    icon: FileText,
+    color: "text-agent-cyan",
+  },
+  {
     label: "Audit Trail",
     href: "/audit",
     icon: FileSearch,
+    color: "text-mission-400",
+  },
+  {
+    label: "Organization",
+    href: "/organization",
+    icon: Building2,
+    color: "text-agent-amber",
+  },
+  {
+    label: "Profile",
+    href: "/profile",
+    icon: User,
     color: "text-mission-400",
   },
 ];
@@ -112,10 +133,10 @@ export function Sidebar() {
 
       {/* User section */}
       <div className="border-t border-mission-800 p-3">
-        <div className="flex items-center gap-2 text-xs text-mission-500">
+        <Link href="/profile" className="flex items-center gap-2 text-xs text-mission-500 hover:text-mission-300 transition-colors">
           <div className="h-6 w-6 rounded-full bg-mission-700" />
           <span>ibfaye</span>
-        </div>
+        </Link>
       </div>
     </aside>
   );
