@@ -11,25 +11,15 @@ logger = logging.getLogger(__name__)
 
 async def supervisor_node(state: dict[str, Any]) -> dict[str, Any]:
     """
-    LangGraph node: Supervisor plans and routes work.
+    LangGraph node: Supervisor routes to the next agent in the plan.
 
-    - First call: creates plan from workflow nodes (excluding triggers + approvals)
-    - Subsequent calls: routes to next agent in the plan
-    - When all steps done: sets final output
+    The plan is pre-populated by the execution engine. The supervisor
+    checks whether execution is complete and routes to the next agent.
+    When all steps are done, it aggregates final output.
     """
     plan = state.get("plan", [])
     current_step = state.get("current_step", 0)
     agent_results = state.get("agent_results", {})
-
-    # ── First call: create plan ──
-    if not plan:
-        nodes = state.get("workflow_nodes", [])
-        edges = state.get("workflow_edges", [])
-        plan = _build_plan(nodes, edges)
-        state["plan"] = plan
-        state["current_step"] = 0
-        logger.info(f"[Supervisor] Created plan with {len(plan)} steps: {[s['agent'] for s in plan]}")
-        return state
 
     # ── Check completion ──
     if current_step >= len(plan):
@@ -50,43 +40,6 @@ async def supervisor_node(state: dict[str, Any]) -> dict[str, Any]:
 
     logger.info(f"[Supervisor] Routing step {current_step} → {next_agent}")
     return state
-
-
-def _build_plan(nodes: list[dict], edges: list[dict]) -> list[dict]:
-    """Build execution plan from workflow nodes (skip triggers + approvals)."""
-    node_map = {n["id"]: n for n in nodes}
-    target_ids = {e.get("targetNodeId") for e in edges}
-
-    # BFS from root nodes
-    roots = [n for n in nodes if n["id"] not in target_ids]
-    visited: set[str] = set()
-    queue = [n["id"] for n in roots]
-    plan = []
-
-    while queue:
-        node_id = queue.pop(0)
-        if node_id in visited:
-            continue
-        visited.add(node_id)
-        node = node_map.get(node_id)
-        if not node:
-            continue
-
-        # Skip trigger and approval nodes
-        if node.get("nodeType") not in ("trigger", "approval"):
-            plan.append({
-                "node_id": node_id,
-                "node_label": node.get("label", ""),
-                "agent": node.get("config", {}).get("agentType", node.get("nodeType", "")),
-                "action": f"Execute {node.get('label', 'task')}",
-                "description": node.get("config", {}).get("description", ""),
-            })
-
-        for edge in edges:
-            if edge.get("sourceNodeId") == node_id:
-                queue.append(edge.get("targetNodeId"))
-
-    return plan
 
 
 def _aggregate(agent_results: dict, plan: list[dict]) -> dict:

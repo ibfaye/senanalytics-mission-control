@@ -1,10 +1,9 @@
 """Approvals API — resolve human-in-the-loop approval checkpoints."""
 
 import logging
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.core.engine import resolve_approval, get_pending_approvals
-from app.core.websocket import ws_manager
 
 logger = logging.getLogger(__name__)
 

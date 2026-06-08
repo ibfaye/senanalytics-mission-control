@@ -49,7 +49,10 @@ export function useExecuteWorkflow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => workflowsApi.execute(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["executions"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["executions"] });
+      qc.invalidateQueries({ queryKey: ["workflows"] });
+    },
   });
 }
 

@@ -1,6 +1,6 @@
 """Agents API — list available agents and their capabilities."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -82,4 +82,4 @@ async def get_agent(agent_id: str):
     for agent in BUILTIN_AGENTS:
         if agent["id"] == agent_id or agent["name"] == agent_id:
             return agent
-    return None
+    raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")

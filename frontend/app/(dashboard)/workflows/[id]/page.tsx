@@ -1,35 +1,51 @@
-"use client";
+'use client'
 
-import { useParams } from "next/navigation";
-import { WorkflowCanvas } from "@/components/flow/canvas";
-import { WorkflowToolbar } from "@/components/flow/toolbar";
-import { useWorkflow, useSaveWorkflowGraph, useExecuteWorkflow } from "@/lib/hooks/use-workflows";
-import { useWorkflowStore } from "@/lib/stores/workflow-store";
+import { useEffect } from 'react'
+import { useParams } from 'next/navigation'
+import { WorkflowCanvas } from '@/components/flow/canvas'
+import { WorkflowToolbar } from '@/components/flow/toolbar'
+import {
+  useWorkflow,
+  useSaveWorkflowGraph,
+  useExecuteWorkflow,
+} from '@/lib/hooks/use-workflows'
+import { useWorkflowStore } from '@/lib/stores/workflow-store'
+import { useWebSocket } from '@/lib/hooks/use-websocket'
 
 export default function WorkflowDetailPage() {
-  const params = useParams<{ id: string }>();
-  const workflowId = params.id;
+  const params = useParams<{ id: string }>()
+  const workflowId = params.id
 
-  const { data: workflow, isLoading } = useWorkflow(workflowId);
-  const { nodes, edges, setCurrentWorkflow, setNodes, setEdges, isExecuting } =
-    useWorkflowStore();
-  const saveMutation = useSaveWorkflowGraph();
-  const executeMutation = useExecuteWorkflow();
+  const { data: workflow, isLoading } = useWorkflow(workflowId)
+  const {
+    currentWorkflow,
+    nodes,
+    edges,
+    setCurrentWorkflow,
+    setNodes,
+    setEdges,
+    isExecuting,
+  } = useWorkflowStore()
+  const saveMutation = useSaveWorkflowGraph()
+  const executeMutation = useExecuteWorkflow()
 
   // Sync loaded workflow to store
-  if (workflow && !useWorkflowStore.getState().currentWorkflow) {
-    setCurrentWorkflow(workflow);
-    setNodes(workflow.nodes || []);
-    setEdges(workflow.edges || []);
-  }
+  useEffect(() => {
+    if (workflow && (!currentWorkflow || currentWorkflow.id !== workflow.id)) {
+      setCurrentWorkflow(workflow)
+      setNodes(workflow.nodes || [])
+      setEdges(workflow.edges || [])
+    }
+  }, [workflow, setCurrentWorkflow, setNodes, setEdges])
 
   const handleSave = () => {
-    saveMutation.mutate({ id: workflowId, nodes, edges });
-  };
+    saveMutation.mutate({ id: workflowId, nodes, edges })
+  }
 
   const handleExecute = () => {
-    executeMutation.mutate(workflowId);
-  };
+    console.log('[Workflow] Execute button clicked for ID:', workflowId)
+    executeMutation.mutate(workflowId)
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -37,16 +53,16 @@ export default function WorkflowDetailPage() {
       <div className="flex items-center justify-between border-b border-mission-800 bg-mission-900 px-4 py-2">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold text-mission-200">
-            {workflow?.name || "Loading..."}
+            {workflow?.name || 'Loading...'}
           </h1>
           {workflow && (
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-medium
-                ${workflow.status === "active"
-                  ? "bg-emerald-950 text-emerald-400"
-                  : "bg-mission-800 text-mission-400"
-                }`}
-            >
+                ${
+                  workflow.status === 'active'
+                    ? 'bg-emerald-950 text-emerald-400'
+                    : 'bg-mission-800 text-mission-400'
+                }`}>
               {workflow.status}
             </span>
           )}
@@ -55,7 +71,7 @@ export default function WorkflowDetailPage() {
           workflowId={workflowId}
           onSave={handleSave}
           onExecute={handleExecute}
-          isExecuting={isExecuting}
+          isExecuting={isExecuting || executeMutation.isPending}
         />
       </div>
 
@@ -70,5 +86,5 @@ export default function WorkflowDetailPage() {
         )}
       </div>
     </div>
-  );
+  )
 }

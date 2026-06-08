@@ -1,20 +1,50 @@
 """
-Execution Engine — runs workflows through LangGraph with live WebSocket streaming.
+Execution Engine — runs workflows with live WebSocket streaming.
+Agent nodes are called directly by the engine loop; WebSocket events
+are broadcast between steps for live canvas animation.
 """
 
 import asyncio
 import logging
 import uuid
+from collections import deque
 from typing import Optional, Any
 from datetime import datetime, timezone
 
-from app.graphs.governance_graph import governance_graph, AgentState
 from app.core.websocket import ws_manager
+
+# ── Agent registry: name → async node function ──
+from app.agents.discovery import discovery_node
+from app.agents.classification import classification_node
+from app.agents.security import security_node
+from app.agents.compliance import compliance_node
+from app.agents.risk import risk_node
+from app.agents.reporting import reporting_node
+
+_AGENT_REGISTRY: dict[str, Any] = {
+    "discovery": discovery_node,
+    "classification": classification_node,
+    "security": security_node,
+    "compliance": compliance_node,
+    "risk": risk_node,
+    "reporting": reporting_node,
+}
 
 logger = logging.getLogger(__name__)
 
 _executions: dict[str, dict] = {}
 _pending_approvals: dict[str, asyncio.Event] = {}
+
+
+async def _broadcast_to_all(execution_id: str, workflow_id: str, event: str, data: dict):
+    """Broadcast an event to both the execution channel and the workflow channel.
+
+    The frontend connects via workflow_id (from the URL), but the engine
+    generates a unique execution_id per run. Broadcasting to both ensures
+    the frontend always receives events regardless of which channel it's on.
+    """
+    await ws_manager.broadcast(execution_id, event, data)
+    await ws_manager.broadcast(workflow_id, event, data)
 
 
 async def execute_workflow(
@@ -25,7 +55,8 @@ async def execute_workflow(
     input_data: Optional[dict] = None,
 ) -> dict:
     """
-    Execute workflow: run LangGraph, broadcast live events, handle approvals.
+    Execute workflow: walk the plan, call agents directly, broadcast live events,
+    handle approval checkpoints.
     """
     execution_id = str(uuid.uuid4())
     _executions[execution_id] = {
@@ -36,40 +67,41 @@ async def execute_workflow(
 
     logger.info(f"[Engine] Starting execution {execution_id}")
 
-    await ws_manager.broadcast(execution_id, "workflow.execution.started", {
-        "execution_id": execution_id, "workflow_id": workflow_id, "workflow_name": task,
+    await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.started", {
+        "executionId": execution_id, "workflowId": workflow_id, "workflowName": task,
     })
 
-    # Build plan for human-visible steps (includes approvals)
     full_plan = _build_full_plan(workflow_nodes, workflow_edges)
     agent_plan = [s for s in full_plan if not s.get("requires_approval")]
     logger.info(f"[Engine] Plan: {len(full_plan)} steps ({len(agent_plan)} agent steps)")
 
-    initial_state: AgentState = {
-        "messages": [], "task": task, "workflow_id": workflow_id,
-        "execution_id": execution_id, "workflow_nodes": workflow_nodes,
-        "workflow_edges": workflow_edges, "plan": agent_plan, "current_step": 0,
-        "agent_results": {}, "next_agent": "", "current_task_context": {},
-        "final_output": None, "errors": [],
+    # Shared state passed to agent nodes (accumulates results across steps)
+    state: dict[str, Any] = {
+        "task": task,
+        "workflow_id": workflow_id,
+        "execution_id": execution_id,
+        "agent_results": {},
+        "current_task_context": {},
+        "errors": [],
     }
 
-    config = {"configurable": {"thread_id": execution_id}}
-
     try:
-        # ── Walk through full plan (agent + approval steps) ──
         agent_step_idx = 0
 
-        for step_idx, step in enumerate(full_plan):
+        for step in full_plan:
             node_id = step["node_id"]
             node_label = step["node_label"]
 
             # ── Approval step ──
             if step.get("requires_approval"):
                 approval_id = str(uuid.uuid4())
-                await ws_manager.broadcast_approval_requested(
-                    execution_id, approval_id, node_id, node_label,
-                    step.get("description", "Human approval required"), {}
-                )
+                await _broadcast_to_all(execution_id, workflow_id, "approval.requested", {
+                    "executionId": execution_id,
+                    "approvalId": approval_id, "nodeId": node_id,
+                    "nodeLabel": node_label,
+                    "reason": step.get("description", "Human approval required"),
+                    "context": {},
+                })
                 _executions[execution_id].setdefault("approvals", []).append({
                     "approval_id": approval_id, "node_id": node_id, "status": "pending",
                 })
@@ -83,59 +115,88 @@ async def execute_workflow(
                 _pending_approvals.pop(approval_id, None)
                 continue
 
-            # ── Agent step: run LangGraph for this agent ──
+            # ── Agent step: call agent function directly ──
             agent = step["agent"]
-            await ws_manager.broadcast_node_started(execution_id, node_id, "agent", node_label)
+            agent_fn = _AGENT_REGISTRY.get(agent)
+            if not agent_fn:
+                logger.warning(f"[Engine] Unknown agent '{agent}', skipping")
+                continue
 
-            _executions[execution_id].setdefault("steps", []).append({
-                "node_id": node_id, "agent": agent, "status": "running",
-                "started_at": datetime.now(timezone.utc).isoformat(),
+            await _broadcast_to_all(execution_id, workflow_id, "node.started", {
+                "executionId": execution_id,
+                "nodeId": node_id,
+                "nodeType": "agent",
+                "nodeLabel": node_label,
             })
 
-            # Run graph up to current agent step
-            initial_state["current_step"] = agent_step_idx
+            step_record = {
+                "node_id": node_id, "agent": agent, "status": "running",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            }
+            _executions[execution_id].setdefault("steps", []).append(step_record)
+
+            # Set context for the agent to read
+            state["current_task_context"] = {
+                "agent": agent,
+                "description": step.get("description", ""),
+                "action": f"Execute {node_label}",
+            }
+
+            failed = False
+            result: dict = {}
             try:
-                final_state = await governance_graph.ainvoke(initial_state, config)
-                agent_results = final_state.get("agent_results", {})
-                result = agent_results.get(agent, {})
+                # Call agent node directly — returns updated state dict
+                state = await agent_fn(state)
+                result = state.get("agent_results", {}).get(agent, {})
             except Exception as e:
-                logger.error(f"[Engine] Graph error for {agent}: {e}")
+                logger.error(f"[Engine] Agent {agent} failed: {e}")
                 result = {"output": {"error": str(e)}, "metrics": {}}
+                failed = True
+                state.setdefault("errors", []).append({"agent": agent, "error": str(e)})
+
+                await _broadcast_to_all(execution_id, workflow_id, "node.failed", {
+                    "executionId": execution_id,
+                    "nodeId": node_id,
+                    "error": str(e),
+                    "retryable": True,
+                })
 
             metrics = result.get("metrics", {})
             output_data = result.get("output", {})
 
-            # Mark step complete
-            for s in _executions[execution_id]["steps"]:
-                if s.get("agent") == agent and s["status"] == "running":
-                    s["status"] = "completed"
-                    s["completed_at"] = datetime.now(timezone.utc).isoformat()
-                    s["metrics"] = metrics
-                    s["output"] = output_data
-                    break
+            # Update step record
+            step_record["status"] = "failed" if failed else "completed"
+            step_record["completed_at"] = datetime.now(timezone.utc).isoformat()
+            step_record["metrics"] = metrics
+            step_record["output"] = output_data
 
-            await ws_manager.broadcast_node_completed(execution_id, node_id, output_data, {
-                "execution_time_ms": metrics.get("execution_time_ms", 0),
-                "token_usage": metrics.get("token_usage", 0),
-                "cost_cents": metrics.get("cost_cents", 0),
-                "confidence": metrics.get("confidence", 0),
-            })
+            if not failed:
+                await _broadcast_to_all(execution_id, workflow_id, "node.completed", {
+                    "executionId": execution_id,
+                    "nodeId": node_id,
+                    "output": output_data,
+                    "metrics": {
+                        "executionTimeMs": metrics.get("execution_time_ms", 0),
+                        "tokenUsage": metrics.get("token_usage", 0),
+                        "costCents": metrics.get("cost_cents", 0),
+                        "confidence": metrics.get("confidence", 0),
+                    },
+                })
 
-            # Update initial state for next iteration
-            initial_state = final_state
             agent_step_idx += 1
-
-            # Small delay for demo
             await asyncio.sleep(0.3)
 
         # ── Aggregate final results ──
-        final_output = _aggregate(initial_state.get("agent_results", {}), full_plan, _executions[execution_id]["steps"])
+        final_output = _aggregate(state.get("agent_results", {}), full_plan, _executions[execution_id]["steps"])
 
         _executions[execution_id]["status"] = "completed"
         _executions[execution_id]["completed_at"] = datetime.now(timezone.utc)
         _executions[execution_id]["output"] = final_output
 
-        await ws_manager.broadcast_workflow_completed(execution_id, final_output)
+        await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.completed", {
+            "executionId": execution_id,
+            "output": final_output,
+        })
         logger.info(f"[Engine] Execution {execution_id} completed")
 
         return {"execution_id": execution_id, "status": "completed", "output": final_output}
@@ -144,22 +205,25 @@ async def execute_workflow(
         logger.error(f"[Engine] Execution {execution_id} failed: {e}", exc_info=True)
         _executions[execution_id]["status"] = "failed"
         _executions[execution_id]["error"] = str(e)
-        await ws_manager.broadcast_workflow_failed(execution_id, str(e))
+        await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.failed", {
+            "executionId": execution_id,
+            "error": str(e),
+        })
         return {"execution_id": execution_id, "status": "failed", "error": str(e)}
 
 
 def _build_full_plan(nodes: list[dict], edges: list[dict]) -> list[dict]:
-    """Build execution plan including approval checkpoints."""
+    """Build execution plan including approval checkpoints (BFS, O(V+E))."""
     node_map = {n["id"]: n for n in nodes}
     target_ids = {e.get("targetNodeId") for e in edges}
     roots = [n for n in nodes if n["id"] not in target_ids]
 
     visited: set[str] = set()
-    queue = [n["id"] for n in roots]
-    plan = []
+    queue: deque[str] = deque(n["id"] for n in roots)
+    plan: list[dict] = []
 
     while queue:
-        node_id = queue.pop(0)
+        node_id = queue.popleft()
         if node_id in visited:
             continue
         visited.add(node_id)
@@ -229,8 +293,8 @@ async def resolve_approval(approval_id: str, decision: str, reason: Optional[str
                     a["status"] = "approved" if decision == "approved" else "rejected"
                     a["resolved_at"] = datetime.now(timezone.utc).isoformat()
                     a["reason"] = reason
-                    await ws_manager.broadcast(exec_id, "approval.responded", {
-                        "approval_id": approval_id, "decision": decision, "reason": reason,
+                    await _broadcast_to_all(exec_id, exec_data.get("workflow_id", exec_id), "approval.responded", {
+                        "approvalId": approval_id, "decision": decision, "reason": reason,
                     })
                     return True
     return False
