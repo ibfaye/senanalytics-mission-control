@@ -11,7 +11,8 @@ import {
   Workflow,
   Bot,
   FileSearch,
-  ChevronLeft,
+  Plug,
+  Network,
 } from "lucide-react";
 
 const navItems = [
@@ -50,6 +51,18 @@ const navItems = [
     href: "/agents",
     icon: Bot,
     color: "text-agent-emerald",
+  },
+  {
+    label: "MCP Servers",
+    href: "/mcp",
+    icon: Plug,
+    color: "text-agent-amber",
+  },
+  {
+    label: "Knowledge Graph",
+    href: "/knowledge",
+    icon: Network,
+    color: "text-agent-violet",
   },
   {
     label: "Audit Trail",

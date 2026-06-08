@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.event_bus import event_bus
 from app.core.websocket import ws_manager
 from app.api import executions, approvals, agents
+from app.api import mcp as mcp_api
+from app.api import knowledge as knowledge_api
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,6 +48,8 @@ app.add_middleware(
 app.include_router(executions.router)
 app.include_router(approvals.router)
 app.include_router(agents.router)
+app.include_router(mcp_api.router)
+app.include_router(knowledge_api.router)
 
 
 # ── WebSocket Endpoint ──
