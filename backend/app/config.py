@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     # Frontend (for CORS)
     frontend_origin: str = "http://localhost:3000"
 
+    # LLM (OpenAI-compatible API)
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4o-mini"
+    llm_temperature: float = 0.3
+
+    # Execution mode
+    use_langgraph: bool = False  # Set True to use LangGraph astream for agent orchestration
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

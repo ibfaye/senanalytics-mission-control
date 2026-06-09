@@ -12,7 +12,8 @@ from typing import Optional, Any
 from datetime import datetime, timezone
 
 from app.core.websocket import ws_manager
-from app.core.persistence import save_execution, update_execution_status, save_step, update_step
+from app.core.persistence import save_execution, update_execution_status, save_step, update_step, save_audit_log
+from app.config import settings
 
 # ── Agent registry: name → async node function ──
 from app.agents.discovery import discovery_node
@@ -54,12 +55,17 @@ async def execute_workflow(
     workflow_edges: list[dict],
     task: str = "Execute governance workflow",
     input_data: Optional[dict] = None,
+    execution_id: Optional[str] = None,
 ) -> dict:
     """
     Execute workflow: walk the plan, call agents directly, broadcast live events,
     handle approval checkpoints.
+
+    If execution_id is provided, it's used as-is (caller pre-generated it).
+    Otherwise a new UUID is generated.
     """
-    execution_id = str(uuid.uuid4())
+    if execution_id is None:
+        execution_id = str(uuid.uuid4())
     _executions[execution_id] = {
         "id": execution_id, "workflow_id": workflow_id, "status": "running",
         "started_at": datetime.now(timezone.utc), "completed_at": None,
@@ -74,6 +80,9 @@ async def execute_workflow(
 
     # Persist execution to PostgreSQL
     await save_execution(execution_id, workflow_id, "running")
+    await save_audit_log("workflow.execute", "workflow_executed",
+                         execution_id=execution_id, workflow_id=workflow_id,
+                         details={"workflow_name": task})
 
     full_plan = _build_full_plan(workflow_nodes, workflow_edges)
     agent_plan = [s for s in full_plan if not s.get("requires_approval")]
@@ -97,11 +106,25 @@ async def execute_workflow(
 
         agent_step_idx = 0
 
+        # ── LangGraph streaming mode (for workflows without approvals) ──
+        has_approvals = any(s.get("requires_approval") for s in full_plan)
+        if settings.use_langgraph and not has_approvals:
+            logger.info("[Engine] Using LangGraph astream mode")
+            state = await _run_agents_langgraph_stream(
+                state, agent_plan, execution_id, workflow_id,
+            )
+            # Skip the loop — all agents already executed
+            full_plan = [s for s in full_plan if s.get("requires_approval")]
+            agent_step_idx = len(agent_plan)
+
         for step in full_plan:
             # ── Check for cancellation ──
             if _executions[execution_id].get("_cancelled"):
                 logger.info(f"[Engine] Execution {execution_id} cancelled")
                 _executions[execution_id]["status"] = "cancelled"
+                await save_audit_log("workflow.cancel", "workflow_deleted",
+                                     execution_id=execution_id, workflow_id=workflow_id,
+                                     details={"reason": "Cancelled by user"})
                 await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.failed", {
                     "executionId": execution_id,
                     "error": "Execution cancelled by user",
@@ -153,6 +176,10 @@ async def execute_workflow(
                     "approval_id": approval_id, "node_id": node_id, "status": "pending",
                 })
 
+                await save_audit_log("approval.request", "approval_requested",
+                                     execution_id=execution_id, workflow_id=workflow_id,
+                                     details={"node_id": node_id, "node_label": node_label})
+
                 event = asyncio.Event()
                 _pending_approvals[approval_id] = event
                 try:
@@ -184,6 +211,10 @@ async def execute_workflow(
 
             # Persist step to PostgreSQL
             await save_step(execution_id, agent_step_idx, node_id, agent)
+            await save_audit_log(f"node.start.{agent}", "node_started",
+                                 execution_id=execution_id, workflow_id=workflow_id,
+                                 agent_name=agent,
+                                 details={"node_id": node_id, "node_label": node_label})
 
             # Set context for the agent to read
             state["current_task_context"] = {
@@ -232,6 +263,21 @@ async def execute_workflow(
                 error_message=str(e) if failed else None,
             )
 
+            # Audit: step completed or failed
+            step_audit_action = "node_completed" if not failed else "node_failed"
+            await save_audit_log(
+                f"node.{'complete' if not failed else 'fail'}.{agent}",
+                step_audit_action,
+                execution_id=execution_id, workflow_id=workflow_id,
+                agent_name=agent,
+                details={
+                    "node_id": node_id, "node_label": node_label,
+                    "execution_time_ms": metrics.get("execution_time_ms", 0),
+                    "token_usage": metrics.get("token_usage", 0),
+                    **({"error": str(e)} if failed else {}),
+                },
+            )
+
             if not failed:
                 await _broadcast_to_all(execution_id, workflow_id, "node.completed", {
                     "executionId": execution_id,
@@ -264,6 +310,10 @@ async def execute_workflow(
             total_cost_cents=summary_metrics.get("total_cost_cents", 0),
             duration_ms=summary_metrics.get("total_execution_time_ms", 0),
         )
+        await save_audit_log("workflow.complete", "workflow_executed",
+                             execution_id=execution_id, workflow_id=workflow_id,
+                             details={"agents_executed": summary_metrics.get("agents_executed", 0),
+                                      "total_tokens": summary_metrics.get("total_tokens", 0)})
 
         await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.completed", {
             "executionId": execution_id,
@@ -278,11 +328,130 @@ async def execute_workflow(
         _executions[execution_id]["status"] = "failed"
         _executions[execution_id]["error"] = str(e)
         await update_execution_status(execution_id, "failed", error_message=str(e))
+        await save_audit_log("workflow.fail", "workflow_executed",
+                             execution_id=execution_id, workflow_id=workflow_id,
+                             details={"error": str(e)})
         await _broadcast_to_all(execution_id, workflow_id, "workflow.execution.failed", {
             "executionId": execution_id,
             "error": str(e),
         })
         return {"execution_id": execution_id, "status": "failed", "error": str(e)}
+
+
+async def _run_agents_langgraph_stream(
+    state: dict[str, Any],
+    agent_steps: list[dict],
+    execution_id: str,
+    workflow_id: str,
+) -> dict[str, Any]:
+    """
+    Run agent steps through LangGraph's astream for real-time streaming.
+    Each node execution yields a state update that maps to a WebSocket broadcast.
+
+    Only used when settings.use_langgraph=True and the plan has no approvals
+    (approvals are handled externally by the engine loop).
+
+    Returns the final state after all agents have executed.
+    """
+    from app.graphs.governance_graph import governance_graph, AgentState
+
+    # Build LangGraph-compatible state
+    plan = [{
+        "node_id": s["node_id"],
+        "node_label": s["node_label"],
+        "agent": s["agent"],
+        "action": f"Execute {s['node_label']}",
+        "description": s.get("description", ""),
+    } for s in agent_steps]
+
+    lg_state: AgentState = {
+        "messages": [],
+        "task": state.get("task", ""),
+        "workflow_id": state.get("workflow_id", ""),
+        "execution_id": state.get("execution_id", ""),
+        "workflow_nodes": [],
+        "workflow_edges": [],
+        "plan": plan,
+        "current_step": 0,
+        "agent_results": state.get("agent_results", {}),
+        "next_agent": "",
+        "current_task_context": state.get("current_task_context", {}),
+        "final_output": None,
+        "errors": state.get("errors", []),
+    }
+
+    config = {"configurable": {"thread_id": execution_id}}
+    node_to_step: dict[str, str] = {s["agent"]: s["node_id"] for s in agent_steps}
+
+    logger.info(f"[Engine:LangGraph] Streaming {len(plan)} agent(s) via astream")
+
+    step_idx = 0
+    async for chunk in governance_graph.astream(lg_state, config, stream_mode="updates"):
+        for node_name, node_output in chunk.items():
+            # Skip supervisor (routing node, not an agent)
+            if node_name == "supervisor":
+                continue
+
+            node_id = node_to_step.get(node_name, node_name)
+            step = agent_steps[step_idx] if step_idx < len(agent_steps) else {}
+            node_label = step.get("node_label", node_name)
+
+            # Broadcast node started (we see it when the node finishes in updates mode,
+            # so we broadcast started just before processing the output)
+            await _broadcast_to_all(execution_id, workflow_id, "node.started", {
+                "executionId": execution_id, "nodeId": node_id,
+                "nodeType": "agent", "nodeLabel": node_label,
+            })
+
+            # Persist step start
+            await save_step(execution_id, step_idx, node_id, node_name)
+            await save_audit_log(f"node.start.{node_name}", "node_started",
+                                 execution_id=execution_id, workflow_id=workflow_id,
+                                 agent_name=node_name,
+                                 details={"node_id": node_id, "node_label": node_label})
+
+            # Extract agent result
+            agent_results = node_output.get("agent_results", {})
+            result = agent_results.get(node_name, {})
+            metrics = result.get("metrics", {})
+            output_data = result.get("output", {})
+
+            # Update state
+            state["agent_results"] = agent_results
+            state["errors"] = node_output.get("errors", state.get("errors", []))
+
+            # Persist step completion
+            await update_step(
+                execution_id, step_idx,
+                status="completed",
+                execution_time_ms=metrics.get("execution_time_ms", 0),
+                token_usage=metrics.get("token_usage", 0),
+                cost_cents=metrics.get("cost_cents", 0),
+                confidence_score=metrics.get("confidence", 0),
+                output=output_data,
+            )
+            await save_audit_log(f"node.complete.{node_name}", "node_completed",
+                                 execution_id=execution_id, workflow_id=workflow_id,
+                                 agent_name=node_name,
+                                 details={"node_id": node_id, "node_label": node_label,
+                                          "execution_time_ms": metrics.get("execution_time_ms", 0),
+                                          "token_usage": metrics.get("token_usage", 0)})
+
+            await _broadcast_to_all(execution_id, workflow_id, "node.completed", {
+                "executionId": execution_id, "nodeId": node_id,
+                "output": output_data,
+                "metrics": {
+                    "executionTimeMs": metrics.get("execution_time_ms", 0),
+                    "tokenUsage": metrics.get("token_usage", 0),
+                    "costCents": metrics.get("cost_cents", 0),
+                    "confidence": metrics.get("confidence", 0),
+                },
+            })
+
+            step_idx += 1
+
+    logger.info(f"[Engine:LangGraph] Completed {step_idx} agent(s)")
+    return state
 
 
 def _build_full_plan(nodes: list[dict], edges: list[dict]) -> list[dict]:
@@ -363,12 +532,19 @@ async def resolve_approval(approval_id: str, decision: str, reason: Optional[str
         for exec_id, exec_data in _executions.items():
             for a in exec_data.get("approvals", []):
                 if a.get("approval_id") == approval_id:
-                    a["status"] = "approved" if decision == "approved" else "rejected"
+                    approved = decision == "approved"
+                    a["status"] = "approved" if approved else "rejected"
                     a["resolved_at"] = datetime.now(timezone.utc).isoformat()
                     a["reason"] = reason
                     await _broadcast_to_all(exec_id, exec_data.get("workflow_id", exec_id), "approval.responded", {
                         "approvalId": approval_id, "decision": decision, "reason": reason,
                     })
+                    await save_audit_log(
+                        f"approval.{decision}", "approval_granted" if approved else "approval_rejected",
+                        execution_id=exec_id, workflow_id=exec_data.get("workflow_id"),
+                        details={"approval_id": approval_id, "decision": decision,
+                                 "reason": reason, "node_id": a.get("node_id")},
+                    )
                     return True
     return False
 

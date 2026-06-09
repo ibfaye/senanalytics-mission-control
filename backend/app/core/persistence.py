@@ -114,3 +114,35 @@ async def update_step(execution_id: str, step_order: int,
     except Exception as e:
         logger.warning(f"[DB] update_step: {e}")
         return False
+
+
+async def save_audit_log(
+    action: str,
+    action_type: str,
+    execution_id: str | None = None,
+    workflow_id: str | None = None,
+    agent_name: str | None = None,
+    actor_email: str = "system",
+    details: dict | None = None,
+) -> bool:
+    """Insert an immutable audit log entry.
+
+    Every significant event (execution started, node completed, approval granted, etc.)
+    produces an audit entry for compliance and traceability.
+    """
+    if not db.is_connected:
+        return False
+
+    try:
+        details_json = json.dumps(details or {})
+        await db.execute(
+            """INSERT INTO audit_logs (execution_id, workflow_id, action, action_type,
+               actor_email, details)
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb)""",
+            execution_id, workflow_id, action, action_type,
+            actor_email, details_json,
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"[DB] save_audit_log: {e}")
+        return False

@@ -16,6 +16,8 @@ async def execute(workflow_id: str, background_tasks: BackgroundTasks, input: di
     Execute a workflow. Returns immediately with execution ID.
     Execution runs in background with live WebSocket streaming.
     """
+    import uuid as _uuid
+
     # For now, use demo workflow data from the Phase 1 endpoints
     # In full production, fetch from DB
     workflow = _get_demo_workflow(workflow_id)
@@ -25,6 +27,9 @@ async def execute(workflow_id: str, background_tasks: BackgroundTasks, input: di
     nodes = workflow.get("nodes", [])
     edges = workflow.get("edges", [])
 
+    # Pre-generate execution_id so we can return it immediately
+    execution_id = str(_uuid.uuid4())
+
     # Start execution in background
     background_tasks.add_task(
         execute_workflow,
@@ -33,11 +38,13 @@ async def execute(workflow_id: str, background_tasks: BackgroundTasks, input: di
         workflow_edges=edges,
         task=workflow.get("name", "Execute governance workflow"),
         input_data=input,
+        execution_id=execution_id,
     )
 
     # Return immediately — frontend connects via WebSocket for updates
     return {
         "message": "Execution started",
+        "execution_id": execution_id,
         "workflow_id": workflow_id,
         "status": "running",
     }
