@@ -174,7 +174,7 @@ interface AuditEvent {
 ### Connection
 
 ```
-ws://localhost:8000/ws/workflows/{workflowId}?token={jwt}
+ws://${BACKEND_URL}/ws/workflows/{workflowId}?token=***
 ```
 
 ### Server → Client Messages
@@ -276,7 +276,7 @@ ws://localhost:8000/ws/workflows/{workflowId}?token={jwt}
 
 ## REST API Contracts
 
-### Base URL: `http://localhost:8000/api`
+### Base URL: `http://${BACKEND_URL}/api`
 
 ### Authentication
 

@@ -40,7 +40,7 @@ spec:
             - containerPort: 3000
           env:
             - name: BACKEND_URL
-              value: "http://backend.senanalytics.svc.cluster.local:8001"
+              value: "http://backend.senanalytics.svc.cluster.local:8000"
           resources:
             requests:
               cpu: 100m

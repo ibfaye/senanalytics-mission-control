@@ -18,7 +18,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 
 # BACKEND_URL baked at build time for server-side rewrites
-ARG BACKEND_URL=http://backend:8001
+ARG BACKEND_URL=http://backend:8000
 ENV BACKEND_URL=${BACKEND_URL}
 
 RUN pnpm build
@@ -27,7 +27,7 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV BACKEND_URL=http://backend:8001
+ENV BACKEND_URL=http://backend:8000
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs

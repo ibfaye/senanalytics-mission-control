@@ -12,10 +12,11 @@ class Settings(BaseSettings):
 
     # Server
     host: str = "0.0.0.0"
-    port: int = 8001
+    port: int = 8000
+    backend_url: str = "http://localhost:8000"
 
     # PostgreSQL
-    database_url: str = "postgresql://senanalytics:senanalytics_dev@localhost:5432/senanalytics"
+    database_url: str = "postgresql://senanalytics:***@localhost:5432/senanalytics"
 
     # Neo4j
     neo4j_uri: str = "bolt://localhost:7687"
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # Frontend (for CORS)
+    frontend_url: str = "http://localhost:3000"
     frontend_origin: str = "http://localhost:3000"
 
     # LLM (OpenAI-compatible API)

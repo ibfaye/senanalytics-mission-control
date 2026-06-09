@@ -85,14 +85,14 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={`http://localhost:8001/api/reports/${report.id}/download?format=txt`}
+                    href={`/api/mission-control/reports/${report.id}/download?format=txt`}
                     target="_blank"
                     className="flex items-center gap-1 rounded-md bg-mission-800 px-2.5 py-1 text-[10px] text-mission-300 hover:bg-mission-700 transition-colors">
                     <Download className="h-3 w-3" />
                     TXT
                   </a>
                   <a
-                    href={`http://localhost:8001/api/reports/${report.id}/download?format=json`}
+                    href={`/api/mission-control/reports/${report.id}/download?format=json`}
                     target="_blank"
                     className="flex items-center gap-1 rounded-md bg-mission-800 px-2.5 py-1 text-[10px] text-mission-300 hover:bg-mission-700 transition-colors">
                     <ExternalLink className="h-3 w-3" />

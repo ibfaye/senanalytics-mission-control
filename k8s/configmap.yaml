@@ -5,7 +5,10 @@ metadata:
   namespace: senanalytics
 data:
   HOST: "0.0.0.0"
-  PORT: "8001"
+  PORT: "8000"
+  BACKEND_URL: "http://backend.senanalytics.svc.cluster.local:8000"
+  FRONTEND_URL: "https://mission-control.senanalytics.com"
+  DATABASE_URL: "postgresql://senanalytics:***@postgres.senanalytics.svc.cluster.local:5432/senanalytics"
   NEO4J_URI: "bolt://neo4j.senanalytics.svc.cluster.local:7687"
   NEO4J_USER: "neo4j"
   REDIS_URL: "redis://redis.senanalytics.svc.cluster.local:6379"
