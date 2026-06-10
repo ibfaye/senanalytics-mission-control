@@ -10,27 +10,101 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["executions"])
 
 
+async def _fetch_workflow(workflow_id: str) -> dict | None:
+    """Fetch workflow with nodes/edges from the workflows API."""
+    # Import here to avoid circular imports
+    from app.api.workflows import _get_demo as get_wf_demo
+    
+    # Try DB-backed API first (imports workflows router's logic)
+    try:
+        # Use the workflows module's get_workflow logic
+        from app.core.database import db
+        if db.is_connected:
+            row = await db.fetchrow(
+                """SELECT id, name, description FROM workflows 
+                   WHERE id = $1::varchar AND deleted_at IS NULL""",
+                workflow_id,
+            )
+            if row:
+                # Fetch nodes
+                node_rows = await db.fetch(
+                    """SELECT id, node_type, label, position_x, position_y, config, status
+                       FROM workflow_nodes WHERE workflow_id = $1::varchar""",
+                    workflow_id,
+                )
+                # Fetch edges
+                edge_rows = await db.fetch(
+                    """SELECT id, source_node_id, target_node_id, edge_type, label, animated
+                       FROM workflow_edges WHERE workflow_id = $1::varchar""",
+                    workflow_id,
+                )
+                
+                if node_rows or edge_rows:
+                    return {
+                        "id": workflow_id,
+                        "name": row.get("name", "Workflow"),
+                        "description": row.get("description", ""),
+                        "nodes": [
+                            {
+                                "id": str(r["id"]),
+                                "nodeType": r["node_type"],
+                                "label": r["label"],
+                                "positionX": r["position_x"],
+                                "positionY": r["position_y"],
+                                "config": r.get("config") or {},
+                                "status": r.get("status", "idle"),
+                            }
+                            for r in node_rows
+                        ],
+                        "edges": [
+                            {
+                                "id": str(r["id"]),
+                                "sourceNodeId": str(r["source_node_id"]),
+                                "targetNodeId": str(r["target_node_id"]),
+                                "edgeType": r.get("edge_type", "smoothstep"),
+                                "animated": r.get("animated", True),
+                            }
+                            for r in edge_rows
+                        ],
+                    }
+    except Exception as e:
+        logger.warning(f"[Execution] DB fetch for workflow {workflow_id} failed: {e}")
+    
+    # Fallback: use in-memory demo data
+    for wf in get_wf_demo():
+        if wf["id"] == workflow_id:
+            return wf
+    
+    return None
+
+
 @router.post("/api/workflows/{workflow_id}/execute")
 async def execute(workflow_id: str, background_tasks: BackgroundTasks, input: dict | None = None):
     """
-    Execute a workflow. Returns immediately with execution ID.
-    Execution runs in background with live WebSocket streaming.
+    Execute a workflow with its actual nodes and edges.
     """
     import uuid as _uuid
 
-    # For now, use demo workflow data from the Phase 1 endpoints
-    # In full production, fetch from DB
-    workflow = _get_demo_workflow(workflow_id)
+    workflow = await _fetch_workflow(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     nodes = workflow.get("nodes", [])
     edges = workflow.get("edges", [])
 
-    # Pre-generate execution_id so we can return it immediately
+    # Fall back to demo graph if workflow has no nodes yet
+    if not nodes:
+        logger.info(f"[Execution] Workflow {workflow_id} has no nodes — using demo graph")
+        # Load default demo graph (wf-001) as a starting point
+        from app.api.workflows import _get_demo as get_wf_demo
+        for wf in get_wf_demo():
+            if wf["id"] == "wf-001":
+                nodes = wf["nodes"]
+                edges = wf["edges"]
+                break
+
     execution_id = str(_uuid.uuid4())
 
-    # Start execution in background
     background_tasks.add_task(
         execute_workflow,
         workflow_id=workflow_id,
@@ -41,7 +115,6 @@ async def execute(workflow_id: str, background_tasks: BackgroundTasks, input: di
         execution_id=execution_id,
     )
 
-    # Return immediately — frontend connects via WebSocket for updates
     return {
         "message": "Execution started",
         "execution_id": execution_id,
@@ -52,7 +125,6 @@ async def execute(workflow_id: str, background_tasks: BackgroundTasks, input: di
 
 @router.get("/api/executions/{execution_id}")
 async def get_execution_status(execution_id: str):
-    """Get current status of an execution."""
     exec_data = get_execution(execution_id)
     if not exec_data:
         raise HTTPException(status_code=404, detail="Execution not found")
@@ -61,14 +133,12 @@ async def get_execution_status(execution_id: str):
 
 @router.get("/api/executions")
 async def list_executions():
-    """List recent executions."""
     from app.core.engine import _executions
-    return list(_executions.values())[-20:]  # Last 20
+    return list(_executions.values())[-20:]
 
 
 @router.post("/api/executions/{execution_id}/pause")
 async def pause_execution_endpoint(execution_id: str):
-    """Pause a running execution."""
     if not pause_execution(execution_id):
         raise HTTPException(status_code=404, detail="Execution not found or not running")
     return {"message": "Execution paused", "execution_id": execution_id}
@@ -76,7 +146,6 @@ async def pause_execution_endpoint(execution_id: str):
 
 @router.post("/api/executions/{execution_id}/resume")
 async def resume_execution_endpoint(execution_id: str):
-    """Resume a paused execution."""
     if not resume_execution(execution_id):
         raise HTTPException(status_code=404, detail="Execution not found or not paused")
     return {"message": "Execution resumed", "execution_id": execution_id}
@@ -84,36 +153,6 @@ async def resume_execution_endpoint(execution_id: str):
 
 @router.post("/api/executions/{execution_id}/cancel")
 async def cancel_execution_endpoint(execution_id: str):
-    """Cancel a running or paused execution."""
     if not cancel_execution(execution_id):
-        raise HTTPException(status_code=404, detail="Execution not found or not running/paused")
+        raise HTTPException(status_code=404, detail="Execution not found or cannot be cancelled")
     return {"message": "Execution cancelled", "execution_id": execution_id}
-
-
-def _get_demo_workflow(workflow_id: str) -> dict | None:
-    """Return the demo GDPR Compliance Audit workflow."""
-    return {
-        "id": workflow_id,
-        "name": "GDPR Compliance Audit",
-        "description": "Full GDPR compliance scan across all data assets",
-        "status": "active",
-        "version": 2,
-        "createdBy": "ibfaye",
-        "tags": ["gdpr", "compliance"],
-        "nodes": [
-            {"id": "n1", "nodeType": "trigger", "label": "Manual Trigger", "positionX": 100, "positionY": 200, "config": {}, "status": "idle"},
-            {"id": "n2", "nodeType": "agent", "label": "Discovery Agent", "positionX": 350, "positionY": 150, "config": {"agentType": "discovery", "description": "Discover and catalog data sources"}, "status": "idle"},
-            {"id": "n3", "nodeType": "agent", "label": "Classification Agent", "positionX": 350, "positionY": 300, "config": {"agentType": "classification", "description": "Classify PII and sensitive data"}, "status": "idle"},
-            {"id": "n4", "nodeType": "approval", "label": "Human Approval", "positionX": 600, "positionY": 200, "config": {"description": "Review and approve classification results"}, "status": "idle"},
-            {"id": "n5", "nodeType": "agent", "label": "Compliance Agent", "positionX": 850, "positionY": 120, "config": {"agentType": "compliance", "description": "GDPR compliance mapping"}, "status": "idle"},
-            {"id": "n6", "nodeType": "agent", "label": "Reporting Agent", "positionX": 850, "positionY": 280, "config": {"agentType": "reporting", "description": "Generate compliance report"}, "status": "idle"},
-        ],
-        "edges": [
-            {"id": "e1", "sourceNodeId": "n1", "targetNodeId": "n2", "edgeType": "smoothstep", "animated": True},
-            {"id": "e2", "sourceNodeId": "n1", "targetNodeId": "n3", "edgeType": "smoothstep", "animated": True},
-            {"id": "e3", "sourceNodeId": "n2", "targetNodeId": "n4", "edgeType": "smoothstep", "animated": True},
-            {"id": "e4", "sourceNodeId": "n3", "targetNodeId": "n4", "edgeType": "smoothstep", "animated": True},
-            {"id": "e5", "sourceNodeId": "n4", "targetNodeId": "n5", "edgeType": "smoothstep", "animated": True},
-            {"id": "e6", "sourceNodeId": "n4", "targetNodeId": "n6", "edgeType": "smoothstep", "animated": True},
-        ],
-    }

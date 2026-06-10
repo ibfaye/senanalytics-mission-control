@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -25,7 +25,7 @@ import {
 import { useWebSocket } from '@/lib/hooks/use-websocket'
 import { useWorkflowStore } from '@/lib/stores/workflow-store'
 import { ApprovalDialog } from './approval-dialog'
-import type { MeshNodeData, WorkflowNode, WorkflowEdge } from '@/lib/types'
+import type { MeshNodeData, WorkflowNode, WorkflowEdge, NodeStatus } from '@/lib/types'
 
 // ─── Node Types Registry ────────────────────────────────────
 
@@ -40,8 +40,8 @@ const nodeTypes = {
 
 // ─── Convert persisted nodes → React Flow nodes ──────────────
 
-function toReactFlowNodes(workflowNodes: WorkflowNode[]): Node[] {
-  return workflowNodes.map((n) => ({
+function toRFNode(n: WorkflowNode): Node {
+  return {
     id: n.id,
     type: n.nodeType,
     position: { x: n.positionX, y: n.positionY },
@@ -51,8 +51,12 @@ function toReactFlowNodes(workflowNodes: WorkflowNode[]): Node[] {
       nodeType: n.nodeType,
       config: n.config,
       description: n.config?.description as string | undefined,
-    },
-  }))
+    } satisfies MeshNodeData,
+  }
+}
+
+function toReactFlowNodes(workflowNodes: WorkflowNode[]): Node[] {
+  return workflowNodes.map(toRFNode)
 }
 
 // ─── Convert persisted edges → React Flow edges ─────────────
@@ -80,12 +84,19 @@ interface WorkflowCanvasProps {
 export function WorkflowCanvas({ workflowId }: WorkflowCanvasProps) {
   const nodes = useWorkflowStore((s) => s.nodes)
   const edges = useWorkflowStore((s) => s.edges)
+  const addNodeToStore = useWorkflowStore((s) => s.addNode)
   const addEdgeToStore = useWorkflowStore((s) => s.addEdge)
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   const { liveNodeStatus, liveNodeMetrics, approvalRequest, sendApproval } = useWebSocket(workflowId)
+
+  // Expose setRfNodes to the Zustand store so the toolbar can add nodes directly
+  useEffect(() => {
+    useWorkflowStore.setState({ _setRfNodes: setRfNodes })
+    return () => { useWorkflowStore.setState({ _setRfNodes: undefined }) }
+  }, [setRfNodes])
 
   // Initialize React Flow state from store
   useEffect(() => {
@@ -104,29 +115,23 @@ export function WorkflowCanvas({ workflowId }: WorkflowCanvasProps) {
         if (!status && !metrics) return n
         return {
           ...n,
-          data: {
-            ...n.data,
-            ...(status ? { status } : {}),
-            ...(metrics ? { metrics } : {}),
-          },
+          data: { ...n.data, ...(status ? { status } : {}), ...(metrics ? { metrics } : {}), },
         }
       }),
     )
 
-    // Animate and highlight edges connected to active nodes
     setRfEdges((eds) =>
       eds.map((e) => {
         const sourceStatus = liveNodeStatus[e.source]
         const isRunning = sourceStatus === 'running'
         const isSuccess = sourceStatus === 'success'
         const hasActivity = isRunning || isSuccess
-
         return {
           ...e,
-          animated: hasActivity || e.animated, // Force animation if active
+          animated: hasActivity || e.animated,
           style: {
             ...e.style,
-            stroke: isRunning ? '#34d399' : isSuccess ? '#10b981' : '#475569', // emerald-400 : emerald-500 : slate-600
+            stroke: isRunning ? '#34d399' : isSuccess ? '#10b981' : '#475569',
             strokeWidth: hasActivity ? 3 : 2,
           },
         }
@@ -149,25 +154,11 @@ export function WorkflowCanvas({ workflowId }: WorkflowCanvasProps) {
       }
       addEdgeToStore(newEdge)
       setRfEdges((eds) =>
-        addEdge(
-          {
-            ...connection,
-            type: 'smoothstep',
-            animated: true,
-            style: { stroke: '#475569', strokeWidth: 2 },
-          },
-          eds,
-        ),
+        addEdge({ ...connection, type: 'smoothstep', animated: true, style: { stroke: '#475569', strokeWidth: 2 } }, eds),
       )
     },
     [workflowId, addEdgeToStore, setRfEdges],
   )
-
-  // Node click handler
-  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    const d = node.data as MeshNodeData
-    console.log('[Canvas] Node clicked:', node.id, d.label)
-  }, [])
 
   return (
     <div className="h-full w-full">
@@ -177,7 +168,6 @@ export function WorkflowCanvas({ workflowId }: WorkflowCanvasProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         className="bg-mission-950"
         proOptions={{ hideAttribution: true }}
@@ -190,10 +180,7 @@ export function WorkflowCanvas({ workflowId }: WorkflowCanvasProps) {
           style: { stroke: '#475569', strokeWidth: 2 },
         }}>
         <Background color="#1e293b" gap={24} size={1} />
-        <Controls
-          className="!bg-mission-900 !border !border-mission-800 !rounded-lg"
-          position="bottom-left"
-        />
+        <Controls className="!bg-mission-900 !border !border-mission-800 !rounded-lg" position="bottom-left" />
         <MiniMap
           style={{ backgroundColor: 'rgb(15 23 42 / 0.9)' }}
           nodeColor={(n) => {
@@ -208,21 +195,14 @@ export function WorkflowCanvas({ workflowId }: WorkflowCanvasProps) {
         />
       </ReactFlow>
 
-      {/* Approval Dialog Overlay */}
       {approvalRequest && (
         <ApprovalDialog
           data={approvalRequest as unknown as {
-            executionId: string;
-            approvalId: string;
-            nodeId: string;
-            nodeLabel: string;
-            reason: string;
-            context?: Record<string, unknown>;
+            executionId: string; approvalId: string; nodeId: string;
+            nodeLabel: string; reason: string; context?: Record<string, unknown>;
           }}
           onApprove={(approvalId) => sendApproval(approvalId, "approved")}
-          onReject={(approvalId) =>
-            sendApproval(approvalId, "rejected", "Rejected by operator")
-          }
+          onReject={(approvalId) => sendApproval(approvalId, "rejected", "Rejected by operator")}
         />
       )}
     </div>

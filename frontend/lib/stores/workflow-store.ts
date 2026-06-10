@@ -8,6 +8,7 @@ interface WorkflowStore {
   edges: WorkflowEdge[];
   isExecuting: boolean;
   executionId: string | null;
+  _setRfNodes?: unknown; // React Flow setNodes bridge for toolbar
 
   setWorkflows: (wf: Workflow[]) => void;
   setCurrentWorkflow: (wf: Workflow | null) => void;
