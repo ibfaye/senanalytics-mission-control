@@ -226,7 +226,17 @@ async def delete_agent(agent_id: str):
 # ── Helpers ────────────────────────────────────────────────────
 
 def _db_agent_to_dict(row: dict) -> dict:
-    config = row.get("config") or {}
+    import json
+    raw_config = row.get("config")
+    if isinstance(raw_config, str):
+        try:
+            config = json.loads(raw_config)
+        except (json.JSONDecodeError, TypeError):
+            config = {}
+    elif isinstance(raw_config, dict):
+        config = raw_config
+    else:
+        config = {}
     return {
         "id": str(row["id"]),
         "name": row["name"],

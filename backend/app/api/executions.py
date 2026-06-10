@@ -21,21 +21,21 @@ async def _fetch_workflow(workflow_id: str) -> dict | None:
         from app.core.database import db
         if db.is_connected:
             row = await db.fetchrow(
-                """SELECT id, name, description FROM workflows 
-                   WHERE id = $1::varchar AND deleted_at IS NULL""",
+                "SELECT id, name, description FROM workflows "
+                "WHERE id = $1::varchar AND deleted_at IS NULL",
                 workflow_id,
             )
             if row:
                 # Fetch nodes
                 node_rows = await db.fetch(
-                    """SELECT id, node_type, label, position_x, position_y, config, status
-                       FROM workflow_nodes WHERE workflow_id = $1::varchar""",
+                    "SELECT id, node_type, label, position_x, position_y, config, status "
+                    "FROM workflow_nodes WHERE workflow_id = $1::varchar",
                     workflow_id,
                 )
                 # Fetch edges
                 edge_rows = await db.fetch(
-                    """SELECT id, source_node_id, target_node_id, edge_type, label, animated
-                       FROM workflow_edges WHERE workflow_id = $1::varchar""",
+                    "SELECT id, source_node_id, target_node_id, edge_type, label, animated "
+                    "FROM workflow_edges WHERE workflow_id = $1::varchar",
                     workflow_id,
                 )
                 
@@ -133,8 +133,42 @@ async def get_execution_status(execution_id: str):
 
 @router.get("/api/executions")
 async def list_executions():
+    from app.core.database import db
     from app.core.engine import _executions
-    return list(_executions.values())[-20:]
+    
+    results = list(_executions.values())[-20:] if _executions else []
+    
+    # Also fetch from DB
+    if db.is_connected:
+        try:
+            db_rows = await db.fetch(
+                "SELECT e.id, e.workflow_id, e.status, e.started_at, e.completed_at, "
+                "e.error_message, e.execution_metadata "
+                "FROM workflow_executions e "
+                "ORDER BY e.started_at DESC NULLS LAST "
+                "LIMIT 20"
+            )
+            for row in db_rows:
+                # Skip if already in results
+                if any(r.get("id") == str(row["id"]) for r in results):
+                    continue
+                results.append({
+                    "id": str(row["id"]),
+                    "workflow_id": str(row["workflow_id"]) if row.get("workflow_id") else "",
+                    "status": row["status"],
+                    "started_at": row.get("started_at"),
+                    "completed_at": row.get("completed_at"),
+                    "duration_ms": None,
+                    "total_tokens": 0,
+                    "total_cost_cents": 0,
+                    "error_message": row.get("error_message"),
+                    "output": None,
+                    "steps": [],
+                })
+        except Exception as e:
+            logger.warning(f"[Executions] DB fetch failed: {e}")
+    
+    return results
 
 
 @router.post("/api/executions/{execution_id}/pause")
